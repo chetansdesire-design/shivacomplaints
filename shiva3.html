@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Urban Casa | Operations Portal</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-main: #f1f5f9; --sidebar-bg: #1e293b; --card-bg: #ffffff;
+            --accent-blue: #2563eb; --text-main: #0f172a; --danger: #dc2626; 
+            --success: #059669; --border-color: #e2e8f0;
+        }
+
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-main); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        @keyframes urgent-blink { 
+            0%, 100% { background-color: #dc2626; color: white; } 
+            50% { background-color: transparent; color: #dc2626; } 
+        }
+        .blink-urgent { animation: urgent-blink 0.6s infinite; border-radius: 4px; padding: 2px 8px; }
+
+        #login-overlay { position: fixed; inset: 0; background: var(--bg-main); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        .login-box { background: var(--card-bg); padding: 30px; border-radius: 16px; text-align: center; width: 85%; max-width: 320px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .pass-input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid var(--border-color); border-radius: 8px; text-align: center; font-size: 18px; letter-spacing: 4px; }
+        .user-btn { width: 100%; padding: 12px; margin: 5px 0; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; color: white; text-transform: uppercase; }
+
+        .header { padding: 12px; background: var(--sidebar-bg); color: white; display: flex; justify-content: space-between; align-items: center; }
+        .nav-tabs { display: flex; background: #0f172a; padding: 5px; gap: 5px; }
+        .nav-btn { flex: 1; padding: 10px; border: none; background: rgba(255,255,255,0.05); color: white; font-size: 11px; font-weight: 800; border-radius: 6px; cursor: pointer; }
+        .nav-btn.active { background: var(--accent-blue); }
+
+        .filter-chips { display: flex; gap: 6px; overflow-x: auto; padding: 10px; background: white; border-bottom: 1px solid #e2e8f0; }
+        .chip { padding: 6px 12px; border-radius: 20px; background: #f1f5f9; font-size: 10px; font-weight: 700; white-space: nowrap; border: 1px solid #e2e8f0; cursor: pointer; }
+        .chip.active { background: var(--accent-blue); color: white; }
+
+        .container { padding: 12px; flex: 1; overflow-y: auto; }
+        .mobile-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; border: 1px solid var(--border-color); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        
+        /* Dispatch Specific Styles */
+        .dispatch-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; padding: 8px; background: #f8fafc; border-radius: 8px; }
+        .info-item { font-size: 11px; }
+        .info-label { color: #64748b; font-weight: 600; font-size: 9px; text-transform: uppercase; }
+        .info-val { color: #1e293b; font-weight: 700; display: block; }
+
+        .dispatch-btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: 700; margin-top: 5px; cursor: pointer; }
+        .dispatch-btn:disabled { background: #e2e8f0 !important; color: #94a3b8 !important; cursor: not-allowed; border: 1px solid #cbd5e1; }
+
+        .status-toggle { display: flex; width: 100%; gap: 4px; margin-top: 12px; }
+        .tgl-btn { flex: 1; font-size: 8px; padding: 10px 2px; border: 1px solid #ddd; background: #fff; border-radius: 6px; font-weight: 800; cursor: pointer; }
+        .tgl-btn.active-new { background: #fee2e2; color: #dc2626; border-color: #dc2626; }
+        .tgl-btn.active-done { background: #dcfce7; color: #166534; border-color: #166534; }
+
+        input, textarea { width: 100%; margin-bottom: 8px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; font-family: inherit; font-size: 13px; }
+        .remarks-view { font-size: 11px; background: #f8fafc; padding: 8px; border-radius: 6px; margin-top: 8px; color: #475569; border-left: 3px solid var(--accent-blue); }
+        
+        #success-overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 10000; align-items: center; justify-content: center; flex-direction: column; }
+    </style>
+</head>
+<body>
+
+    <div id="login-overlay">
+        <div class="login-box">
+            <h2 style="color:var(--accent-blue); margin:0 0 20px 0;">URBAN CASA</h2>
+            <input type="password" id="passField" class="pass-input" placeholder="••••">
+            <button class="user-btn" style="background:#6366f1;" onclick="login('Shiva')">SHIVA LOGIN</button>
+            <button class="user-btn" style="background:#059669;" onclick="login('Suman')">SUMAN LOGIN</button>
+            <button class="user-btn" style="background:var(--sidebar-bg);" onclick="login('Admin')">ADMIN LOGIN</button>
+        </div>
+    </div>
+
+    <div id="success-overlay"><h1>⚙️</h1><p>UPDATING...</p></div>
+
+    <div id="app-content" style="display:none; flex-direction:column; height:100%;">
+        <div class="header">
+            <div><span id="userDisplay" style="font-weight:900; font-size:16px;"></span></div>
+            <button onclick="location.reload()" style="background:none; border:1px solid rgba(255,255,255,0.3); color:white; border-radius:4px; font-size:10px; padding:6px 10px;">LOGOUT</button>
+        </div>
+
+        <div class="nav-tabs">
+            <button id="tab-dispatch" class="nav-btn active" onclick="switchView('DISPATCH')">DISPATCH PORTAL</button>
+            <button id="tab-complaints" class="nav-btn" onclick="switchView('COMPLAINTS')">COMPLAINTS PORTAL</button>
+        </div>
+
+        <div id="filter-bar" class="filter-chips"></div>
+
+        <div class="container">
+            <div id="action-box"></div>
+            <div id="card-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { databaseURL: "https://new-dispatch-approval-default-rtdb.firebaseio.com/" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let currentUser = '', currentView = 'DISPATCH', currentFilter = 'ALL';
+        let dispatchData = [], complaintData = [];
+
+        function login(role) {
+            const pass = document.getElementById('passField').value;
+            const creds = { 'Admin': 'admin123', 'Shiva': 'shiva2026', 'Suman': 'suman2024' };
+            if (pass !== creds[role]) return alert("Incorrect Password");
+            currentUser = role;
+            document.getElementById('userDisplay').innerText = role.toUpperCase();
+            document.getElementById('login-overlay').style.display = 'none';
+            document.getElementById('app-content').style.display = 'flex';
+            startSync();
+        }
+
+        function startSync() {
+            db.ref('dispatch_records').on('value', s => { 
+                dispatchData = Object.keys(s.val() || {}).map(k => ({...s.val()[k], id: k})).reverse();
+                if(currentView === 'DISPATCH') render();
+            });
+            db.ref('complaints_records').on('value', s => { 
+                complaintData = Object.keys(s.val() || {}).map(k => ({...s.val()[k], id: k})).reverse();
+                if(currentView === 'COMPLAINTS') render();
+            });
+        }
+
+        function switchView(view) {
+            currentView = view;
+            currentFilter = 'ALL';
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab-' + view.toLowerCase()).classList.add('active');
+            render();
+        }
+
+        function render() {
+            renderFilters();
+            renderActionBox();
+            const list = document.getElementById('card-list');
+            list.innerHTML = '';
+            const data = currentView === 'DISPATCH' ? dispatchData : complaintData;
+
+            data.forEach(item => {
+                if(currentFilter !== 'ALL' && item.statusText !== currentFilter) return;
+                const card = document.createElement('div');
+                card.className = 'mobile-card';
+                card.style.padding = '15px';
+                
+                if(currentView === 'DISPATCH') {
+                    const isQC = item.statusText === 'NEW';
+                    card.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:start;">
+                            <div><b>${item.name}</b><br><small style="color:gray">📍 ${item.loc}</small></div>
+                            <span class="${isQC ? 'blink-urgent' : ''}" style="font-size:10px; font-weight:900;">${item.statusText}</span>
+                        </div>
+                        
+                        <div class="dispatch-info">
+                            <div class="info-item">
+                                <span class="info-label">Bill No</span>
+                                <span class="info-val">${item.billNo || '---'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Qty</span>
+                                <span class="info-val">${item.qty || '0'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Sales Executive</span>
+                                <span class="info-val">${item.exec || '---'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Date</span>
+                                <span class="info-val">${item.date || '---'}</span>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:5px;">${getDispatchAction(item)}</div>
+                    `;
+                } else {
+                    const isNew = item.statusText === 'NEW';
+                    card.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:start;">
+                            <div><b>${item.name}</b><br><small style="color:gray">📍 ${item.loc}</small></div>
+                            <span class="${isNew ? 'blink-urgent' : ''}" style="font-size:10px; font-weight:900;">${item.statusText}</span>
+                        </div>
+                        ${item.remarks ? `<div class="remarks-view"><b>ISSUE:</b> ${item.remarks}</div>` : ''}
+                        <div class="status-toggle">
+                            <button onclick="updateStatus('complaints','${item.id}','NEW')" class="tgl-btn ${item.statusText==='NEW'?'active-new':''}">NEW</button>
+                            <button onclick="updateStatus('complaints','${item.id}','RESOLVED')" class="tgl-btn ${item.statusText==='RESOLVED'?'active-done':''}">RESOLVED</button>
+                        </div>
+                    `;
+                }
+                list.appendChild(card);
+            });
+        }
+
+        function renderFilters() {
+            const fBar = document.getElementById('filter-bar');
+            const filters = currentView === 'DISPATCH' ? ['ALL', 'NEW', 'PENDING', 'DELIVERED'] : ['ALL', 'NEW', 'RESOLVED'];
+            fBar.innerHTML = filters.map(f => `<div class="chip ${currentFilter===f?'active':''}" onclick="setF('${f}')">${f}</div>`).join('');
+        }
+
+        function setF(f) { currentFilter = f; render(); }
+
+        function renderActionBox() {
+            const box = document.getElementById('action-box');
+            // Simplified Complaint log for Shiva/Suman
+            box.innerHTML = currentView === 'COMPLAINTS' ? `
+                <div style="background:white; padding:15px; border-radius:12px; margin-bottom:15px; border:1px solid var(--accent-blue);">
+                    <h4 style="margin:0 0 10px 0; font-size:12px; color:var(--accent-blue);">+ LOG NEW COMPLAINT</h4>
+                    <input type="text" id="cName" placeholder="Customer Name">
+                    <input type="text" id="cLoc" placeholder="Location">
+                    <textarea id="cRemarks" placeholder="Service Remarks / Issue Details" rows="2"></textarea>
+                    <button onclick="addComplaint()" style="width:100%; background:var(--accent-blue); color:white; border:none; padding:10px; border-radius:6px; font-weight:700;">CREATE TICKET</button>
+                </div>` : '';
+        }
+
+        function addComplaint() {
+            const n = document.getElementById('cName').value, l = document.getElementById('cLoc').value, r = document.getElementById('cRemarks').value;
+            if(n && l) {
+                db.ref('complaints_records').push({
+                    name:n, loc:l, remarks: r, statusText:'NEW', 
+                    date:new Date().toISOString().split('T')[0], addedBy:currentUser
+                });
+                document.getElementById('cName').value = '';
+                document.getElementById('cLoc').value = '';
+                document.getElementById('cRemarks').value = '';
+            }
+        }
+
+        function updateStatus(ref, id, status) { 
+            document.getElementById('success-overlay').style.display = 'flex';
+            db.ref(ref+'_records').child(id).update({statusText: status}); 
+            setTimeout(() => { document.getElementById('success-overlay').style.display = 'none'; }, 500);
+        }
+
+        function getDispatchAction(item) {
+            // QC STAGE: Only Admin can click
+            if (item.statusText === 'NEW') {
+                if (currentUser === 'Admin') {
+                    return `<button onclick="updateStatus('dispatch','${item.id}','PENDING')" class="dispatch-btn" style="background:var(--accent-blue); color:white;">APPROVE QC (ADMIN)</button>`;
+                } else {
+                    return `<button disabled class="dispatch-btn">READ ONLY: QC PENDING</button>`;
+                }
+            }
+
+            // PENDING STAGE: Waiting for Admin Approval toggle
+            if (item.statusText === 'PENDING' && !item.approved) {
+                return `<button disabled class="dispatch-btn" style="border: 1px dashed #ccc;">⏳ AWAITING FINAL APPROVAL</button>`;
+            }
+
+            // APPROVED STAGE: Shiva/Suman can click
+            if (item.approved && item.statusText !== 'DELIVERED') {
+                return `<button onclick="updateStatus('dispatch','${item.id}','DELIVERED')" class="dispatch-btn" style="background:#25d366; color:white;">📤 DISPATCH NOW</button>`;
+            }
+
+            // FINAL STAGE
+            if (item.statusText === 'DELIVERED') {
+                return `<div style="text-align:center; color:var(--success); font-weight:800; padding:10px; border:1px solid var(--success); border-radius:8px;">✓ DELIVERED</div>`;
+            }
+            return '';
+        }
+    </script>
+</body>
+</html>
